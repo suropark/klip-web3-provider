@@ -3,7 +3,7 @@
 // This file is derived from coinbase-wallet-sdk/packages/wallet-sdk/src/provider/CoinbaseWalletProvider.ts (2022/08/01).
 // Modified for the klip-web3-provider development.
 
-const { prepare, getResult } = require('klip-sdk');
+const { prepare, getResult, request } = require('klip-sdk');
 import SafeEventEmitter from '@metamask/safe-event-emitter';
 import { convertHexToUtf8 } from '@walletconnect/utils';
 import { ethErrors } from 'eth-rpc-errors';
@@ -311,6 +311,7 @@ export class KlipWeb3Provider extends SafeEventEmitter implements Web3Provider {
                 return reject(res.err);
             } else if (res.request_key) {
                 const klipLink = KlipUrl + res.request_key;
+                await request(klipLink, () => {});
                 this.qrcodeModal.open(klipLink, () => {
                     this.emit('modal_closed');
                 });
@@ -363,6 +364,7 @@ export class KlipWeb3Provider extends SafeEventEmitter implements Web3Provider {
                 return reject(res.err);
             } else if (res.request_key) {
                 const klipLink = KlipUrl + res.request_key;
+                await request(klipLink, () => {});
                 this.qrcodeModal.open(klipLink, () => {
                     this.emit('modal_closed');
                 });
@@ -410,6 +412,7 @@ export class KlipWeb3Provider extends SafeEventEmitter implements Web3Provider {
                 return reject(res.err);
             } else if (res.request_key) {
                 const klipLink = KlipUrl + res.request_key;
+                await request(klipLink, () => {});
                 this.qrcodeModal.open(klipLink, () => {
                     this.emit('modal_closed');
                 });
