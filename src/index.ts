@@ -42,8 +42,8 @@ export class KlipWeb3Provider extends SafeEventEmitter implements Web3Provider {
     public rpcUrl = '';
     public ethersProvider: any;
     public ethersEnabled = false;
+    public addresses: string[] = [];
     private readonly _subscriptionManager = new SubscriptionManager(this);
-    private _addresses: string[] = [];
 
     constructor(opts: IKlipProviderOptions) {
         super({});
@@ -312,8 +312,8 @@ export class KlipWeb3Provider extends SafeEventEmitter implements Web3Provider {
         if (this.ethersProvider != undefined) {
             this.ethersEnabled = await this._checkRpcUrl();
         }
-        if (this._addresses.length > 0) {
-            return this._addresses;
+        if (this.addresses.length > 0) {
+            return this.addresses;
         }
         return new Promise(async (resolve, reject) => {
             const res = await prepare.auth({ bappName: this.bappName });
@@ -330,12 +330,12 @@ export class KlipWeb3Provider extends SafeEventEmitter implements Web3Provider {
                         if (data.status == 'completed') {
                             this.qrcodeModal.close();
                             clearInterval(interval);
-                            this._addresses = [data.result.klaytn_address];
+                            this.addresses = [data.result.klaytn_address];
                             return resolve([data.result.klaytn_address]);
                         } else if (data.status == 'canceled' || data.status == 'error') {
                             this.qrcodeModal.close();
                             clearInterval(interval);
-                            this._addresses = [];
+                            this.addresses = [];
                             return reject(new Error('Process is canceled or error occurs'));
                         }
                     });
@@ -349,7 +349,7 @@ export class KlipWeb3Provider extends SafeEventEmitter implements Web3Provider {
     };
 
     private _eth_accounts(): string[] {
-        return [...this._addresses];
+        return [...this.addresses];
     }
 
     private _net_version(): number {
