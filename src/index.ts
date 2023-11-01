@@ -5,17 +5,21 @@
 
 const { prepare, getResult, request } = require('klip-sdk');
 import SafeEventEmitter from '@metamask/safe-event-emitter';
-import { convertHexToUtf8 } from '@walletconnect/utils';
 import { ethErrors } from 'eth-rpc-errors';
-import Caver from 'caver-js';
 
 import QRCodeModal from './klip-qrcode-modal';
 import { JSONRPCResponse, JSONRPCRequest, JSONRPCMethod } from './JSONRPC';
 import { Web3Provider, RequestArguments } from './Web3Provider';
 import { SubscriptionManager, SubscriptionNotification, SubscriptionResult } from './SubscriptionManager';
+import { BytesLike, Signature, ethers } from 'ethers';
+import axios from 'axios';
 const CypressChainId = '0x2019';
-const ErrorMsgCaverUndefined = 'RPC Url is not provided or chain id is different from Klaytn Mainnet.';
-const KlipUrl = 'https://klipwallet.com/?target=/a2a?request_key=';
+const ErrorMsgUndefined = 'RPC Url is not provided or chain id is different from Klaytn Mainnet.';
+const PublicRpcUrl = 'https://klaytn.blockpi.network/v1/rpc/public';
+
+const prepareUrl = 'https://a2a-api.klipwallet.com/v2/a2a/prepare';
+const requestUrl = 'https://klipwallet.com/?target=/a2a?request_key=';
+const resultUrl = 'https://a2a-api.klipwallet.com/v2/a2a/result?request_key=';
 export type Callback<T> = (err: Error | null, result: T | null) => void;
 
 export interface IKlipProviderOptions {
@@ -36,16 +40,16 @@ export class KlipWeb3Provider extends SafeEventEmitter implements Web3Provider {
     public qrcodeModalOptions: IQRCodeModalOptions | undefined = undefined;
     public bappName = '';
     public rpcUrl = '';
-    public caver: any;
-    public caverEnabled = false;
+    public ethersProvider: any;
+    public ethersEnabled = false;
     private readonly _subscriptionManager = new SubscriptionManager(this);
     private _addresses: string[] = [];
 
     constructor(opts: IKlipProviderOptions) {
         super({});
         this.bappName = opts.bappName ? opts.bappName : 'undefined';
-        this.rpcUrl = opts.rpcUrl ? opts.rpcUrl : 'undefined';
-        this.caver = this.rpcUrl != 'undefined' ? new Caver(new Caver.providers.HttpProvider(this.rpcUrl)) : undefined;
+        this.rpcUrl = opts.rpcUrl ? opts.rpcUrl : PublicRpcUrl;
+        this.ethersProvider = new ethers.providers.JsonRpcProvider(this.rpcUrl);
         this.chainId = this.getChainId();
         this._subscriptionManager.events.on('notification', (notification: SubscriptionNotification) => {
             this.emit('message', {
@@ -56,8 +60,8 @@ export class KlipWeb3Provider extends SafeEventEmitter implements Web3Provider {
     }
 
     private async _checkRpcUrl(): Promise<boolean> {
-        const chainId = await this.caver.rpc.klay.getChainId();
-        return chainId === CypressChainId;
+        const chainId = (await this.ethersProvider.getNetwork()).chainId;
+        return chainId === Number(CypressChainId);
     }
 
     public getChainId(): string {
@@ -196,7 +200,7 @@ export class KlipWeb3Provider extends SafeEventEmitter implements Web3Provider {
 
         if (response.result === undefined) {
             throw new Error(
-                `Kaikas Wallet does not support calling ${method} synchronously without ` +
+                `Klip Wallet does not support calling ${method} synchronously without ` +
                     `a callback. Please provide a callback parameter to call ${method} ` +
                     `asynchronously.`,
             );
@@ -290,6 +294,12 @@ export class KlipWeb3Provider extends SafeEventEmitter implements Web3Provider {
                 return this._eth_getTransactionReceipt(params);
             case JSONRPCMethod.eth_call:
                 return this._eth_call(params);
+            case JSONRPCMethod.eth_getBalance:
+                return this._eth_getBalance(params);
+            case JSONRPCMethod.eth_estimateGas:
+                return this._eth_estimateGas(params);
+            case JSONRPCMethod.eth_getTransactionByHash:
+                return this._eth_getTransactionByHash(params);
         }
         throw new Error(`${method} is not supported in klip-web3-provider.`);
     }
@@ -299,8 +309,8 @@ export class KlipWeb3Provider extends SafeEventEmitter implements Web3Provider {
     }
 
     enable = async (): Promise<string[]> => {
-        if (this.caver != undefined) {
-            this.caverEnabled = await this._checkRpcUrl();
+        if (this.ethersProvider != undefined) {
+            this.ethersEnabled = await this._checkRpcUrl();
         }
         if (this._addresses.length > 0) {
             return this._addresses;
@@ -310,7 +320,7 @@ export class KlipWeb3Provider extends SafeEventEmitter implements Web3Provider {
             if (res.err) {
                 return reject(res.err);
             } else if (res.request_key) {
-                const klipLink = KlipUrl + res.request_key;
+                const klipLink = requestUrl + res.request_key;
                 await request(klipLink, () => {});
                 this.qrcodeModal.open(klipLink, () => {
                     this.emit('modal_closed');
@@ -355,15 +365,24 @@ export class KlipWeb3Provider extends SafeEventEmitter implements Web3Provider {
             const bappName = this.bappName;
             const value = typeof params[0] === 'string' ? params[0] : 'undefined'; //message
             const from = params[1];
-            const res = await prepare.signMessage({
-                bappName,
-                value: convertHexToUtf8(value),
-                from,
-            });
+            const res = await axios
+                .post(prepareUrl, {
+                    bapp: {
+                        name: bappName,
+                    },
+                    type: 'sign_message',
+                    chain: 'klaytn',
+                    message: {
+                        is_hex_encoded: false,
+                        value: value,
+                    },
+                })
+                .then((res) => res.data);
+
             if (res.err) {
                 return reject(res.err);
             } else if (res.request_key) {
-                const klipLink = KlipUrl + res.request_key;
+                const klipLink = requestUrl + res.request_key;
                 await request(klipLink, () => {});
                 this.qrcodeModal.open(klipLink, () => {
                     this.emit('modal_closed');
@@ -396,22 +415,29 @@ export class KlipWeb3Provider extends SafeEventEmitter implements Web3Provider {
     private async _eth_sendTransaction(params: any[]): Promise<JSONRPCResponse> {
         // send token transaction & send klay transaction
         return new Promise<JSONRPCResponse>(async (resolve, reject) => {
-            if (params[0].hasOwnProperty('data') && params[0]['data'] != '') {
-                return reject(new Error('This provider cannot be used to execute smart contract functions.'));
-            }
             const bappName = this.bappName;
             const to = params[0]['to'];
-            const amount = (Number(params[0]['value']) * Number(10 ** -18)).toFixed(6).toString();
-            const res = await prepare.sendKLAY({
-                bappName,
-                to,
-                amount,
-            });
+            const data = params[0]['data'];
+            const amount = Number(params[0]['value'] ?? 0).toString();
+            const res = await axios
+                .post(prepareUrl, {
+                    bapp: {
+                        name: bappName,
+                    },
+                    type: 'execute_contract',
+                    transaction: {
+                        to,
+                        value: amount,
+                        encoded_function_call: data,
+                    },
+                })
+                .then((res) => res.data);
 
             if (res.err) {
                 return reject(res.err);
             } else if (res.request_key) {
-                const klipLink = KlipUrl + res.request_key;
+                const klipLink = requestUrl + res.request_key;
+
                 await request(klipLink, () => {});
                 this.qrcodeModal.open(klipLink, () => {
                     this.emit('modal_closed');
@@ -442,50 +468,62 @@ export class KlipWeb3Provider extends SafeEventEmitter implements Web3Provider {
     }
 
     private async _eth_call(params: unknown[]): Promise<JSONRPCResponse> {
-        if (this.caver == undefined || !this.caverEnabled) {
-            throw new Error(ErrorMsgCaverUndefined);
-        }
-        const result = await this.caver.rpc.klay.call(params[0], params[1]);
+        this._checkProvider();
+        const result = await this.ethersProvider.send('eth_call', params);
         return { jsonrpc: '2.0', id: 0, result };
     }
 
     private async _personal_ecRecover(params: unknown[]): Promise<JSONRPCResponse> {
-        if (this.caver == undefined || !this.caverEnabled) {
-            throw new Error(ErrorMsgCaverUndefined);
-        }
-        const address = await this.caver.utils.recover(params[0], params[1]);
+        this._checkProvider();
+        const address = await ethers.utils.recoverAddress(params[0] as BytesLike, params[1] as Signature);
         return { jsonrpc: '2.0', id: 0, result: address };
     }
 
     private async _eth_getTransactionReceipt(params: unknown[]): Promise<JSONRPCResponse> {
-        if (this.caver == undefined || !this.caverEnabled) {
-            throw new Error(ErrorMsgCaverUndefined);
-        }
-        const receipt = await this.caver.rpc.klay.getTransactionReceipt(params[0]);
+        this._checkProvider();
+        const txHash = params[0] as string;
+        const receipt = await this.ethersProvider.getTransactionReceipt(txHash);
         return { jsonrpc: '2.0', id: 0, result: receipt };
     }
 
     private async _eth_blockNumber(): Promise<JSONRPCResponse> {
-        if (this.caver == undefined || !this.caverEnabled) {
-            throw new Error(ErrorMsgCaverUndefined);
-        }
-        const blockNumber = await this.caver.rpc.klay.getBlockNumber();
+        this._checkProvider();
+        const blockNumber = await this.ethersProvider.getBlockNumber();
         return { jsonrpc: '2.0', id: 0, result: blockNumber };
     }
 
     private async _eth_getBlockByNumber(params: unknown[]): Promise<JSONRPCResponse> {
-        if (this.caver == undefined || !this.caverEnabled) {
-            throw new Error(ErrorMsgCaverUndefined);
-        }
-        const block = await this.caver.rpc.klay.getBlockByNumber(params[0], params[1]);
+        this._checkProvider();
+        const block = await this.ethersProvider.getBlock(params[0]);
         return { jsonrpc: '2.0', id: 0, result: block };
     }
 
     private async _eth_getGasPrice(): Promise<JSONRPCResponse> {
-        if (this.caver == undefined || !this.caverEnabled) {
-            throw new Error(ErrorMsgCaverUndefined);
-        }
-        const result = await this.caver.rpc.klay.getGasPrice();
+        this._checkProvider();
+        const result = await this.ethersProvider.getGasPrice();
         return { jsonrpc: '2.0', id: 0, result: result };
+    }
+    private async _eth_getBalance(params: unknown[]): Promise<JSONRPCResponse> {
+        this._checkProvider();
+
+        const result = await this.ethersProvider.getBalance(params[0]);
+        return { jsonrpc: '2.0', id: 0, result };
+    }
+    private async _eth_getTransactionByHash(params: unknown[]): Promise<JSONRPCResponse> {
+        this._checkProvider();
+        const result = await this.ethersProvider.send('eth_getTransactionByHash', params);
+        return { jsonrpc: '2.0', id: 0, result };
+    }
+
+    private async _eth_estimateGas(params: unknown[]): Promise<JSONRPCResponse> {
+        this._checkProvider();
+        const result = await this.ethersProvider.estimateGas(params[0]);
+        return { jsonrpc: '2.0', id: 0, result };
+    }
+
+    private _checkProvider() {
+        if (this.ethersProvider == undefined || !this.ethersEnabled) {
+            throw new Error(ErrorMsgUndefined);
+        }
     }
 }

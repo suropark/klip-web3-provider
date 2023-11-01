@@ -34,6 +34,9 @@ export enum JSONRPCMethod {
     eth_blockNumber = 'eth_blockNumber',
     eth_getBlockByNumber = 'eth_getBlockByNumber',
     eth_call = 'eth_call',
+    eth_getBalance = 'eth_getBalance',
+    eth_estimateGas = 'eth_estimateGas',
+    eth_getTransactionByHash = 'eth_getTransactionByHash',
 
     // asynchronous pub/sub
     eth_subscribe = 'eth_subscribe',
