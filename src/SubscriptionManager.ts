@@ -1,8 +1,8 @@
 // Copyright (c) 2018-2022 Coinbase, Inc. <https://www.coinbase.com/>
 // Licensed under the Apache License, version 2.0
 // This file is derived from coinbase-wallet-sdk/packages/wallet-sdk/src/provider/SubscriptionManager.ts (2022/08/01).
-const PollingBlockTracker = require('eth-block-tracker');
 const createSubscriptionManager = require('eth-json-rpc-filters/subscriptionManager');
+const { PollingBlockTracker } = require('eth-block-tracker');
 
 import SafeEventEmitter from '@metamask/safe-event-emitter';
 import { JsonRpcEngineEndCallback, JsonRpcEngineNextCallback } from 'json-rpc-engine';
