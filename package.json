@@ -24,7 +24,6 @@
         "eth-rpc-errors": "4.0.2",
         "ethers": "5.7.2",
         "json-rpc-engine": "6.1.0",
-        "klip-sdk": "2.2.0",
         "qrcode": "^1.5.1"
     },
     "devDependencies": {

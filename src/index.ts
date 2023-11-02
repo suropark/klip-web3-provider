@@ -3,7 +3,6 @@
 // This file is derived from coinbase-wallet-sdk/packages/wallet-sdk/src/provider/CoinbaseWalletProvider.ts (2022/08/01).
 // Modified for the klip-web3-provider development.
 
-const { prepare, getResult, request } = require('klip-sdk');
 import SafeEventEmitter from '@metamask/safe-event-emitter';
 import { ethErrors } from 'eth-rpc-errors';
 
@@ -316,29 +315,41 @@ export class KlipWeb3Provider extends SafeEventEmitter implements Web3Provider {
             return this.addresses;
         }
         return new Promise(async (resolve, reject) => {
-            const res = await prepare.auth({ bappName: this.bappName });
+            const res = await axios
+                .post(prepareUrl, {
+                    bapp: {
+                        name: this.bappName,
+                    },
+                    type: 'auth',
+                })
+                .then((res) => res.data);
             if (res.err) {
                 return reject(res.err);
             } else if (res.request_key) {
                 const klipLink = requestUrl + res.request_key;
-                await request(klipLink, () => {});
-                this.qrcodeModal.open(klipLink, () => {
-                    this.emit('modal_closed');
-                });
-                const interval = setInterval(() => {
-                    getResult(res.request_key).then((data: any) => {
-                        if (data.status == 'completed') {
-                            this.qrcodeModal.close();
-                            clearInterval(interval);
-                            this.addresses = [data.result.klaytn_address];
-                            return resolve([data.result.klaytn_address]);
-                        } else if (data.status == 'canceled' || data.status == 'error') {
-                            this.qrcodeModal.close();
-                            clearInterval(interval);
-                            this.addresses = [];
-                            return reject(new Error('Process is canceled or error occurs'));
-                        }
+                const isMobile = this._checkDeepLink(res.request_key);
+                if (!isMobile) {
+                    this.qrcodeModal.open(klipLink, () => {
+                        this.emit('modal_closed');
                     });
+                }
+                const interval = setInterval(() => {
+                    axios
+                        .get(resultUrl + res.request_key)
+                        .then((res) => res.data)
+                        .then((data: any) => {
+                            if (data.status == 'completed') {
+                                this.qrcodeModal.close();
+                                clearInterval(interval);
+                                this.addresses = [data.result.klaytn_address];
+                                return resolve([data.result.klaytn_address]);
+                            } else if (data.status == 'canceled' || data.status == 'error') {
+                                this.qrcodeModal.close();
+                                clearInterval(interval);
+                                this.addresses = [];
+                                return reject(new Error('Process is canceled or error occurs'));
+                            }
+                        });
                 }, 1000);
                 this.on('modal_closed', () => {
                     clearInterval(interval);
@@ -383,26 +394,32 @@ export class KlipWeb3Provider extends SafeEventEmitter implements Web3Provider {
                 return reject(res.err);
             } else if (res.request_key) {
                 const klipLink = requestUrl + res.request_key;
-                await request(klipLink, () => {});
-                this.qrcodeModal.open(klipLink, () => {
-                    this.emit('modal_closed');
-                });
-                const interval = setInterval(() => {
-                    getResult(res.request_key).then((data: any) => {
-                        if (data.status == 'completed') {
-                            this.qrcodeModal.close();
-                            clearInterval(interval);
-                            return resolve({
-                                jsonrpc: '2.0',
-                                id: 0,
-                                result: data.result.signature,
-                            });
-                        } else if (data.status == 'canceled' || data.status == 'error') {
-                            this.qrcodeModal.close();
-                            clearInterval(interval);
-                            return reject(new Error('Process is canceled or error occurs'));
-                        }
+                const isMobile = this._checkDeepLink(res.request_key);
+                if (!isMobile) {
+                    this.qrcodeModal.open(klipLink, () => {
+                        this.emit('modal_closed');
                     });
+                }
+
+                const interval = setInterval(() => {
+                    axios
+                        .get(resultUrl + res.request_key)
+                        .then((res) => res.data)
+                        .then((data: any) => {
+                            if (data.status == 'completed') {
+                                this.qrcodeModal.close();
+                                clearInterval(interval);
+                                return resolve({
+                                    jsonrpc: '2.0',
+                                    id: 0,
+                                    result: data.result.signature,
+                                });
+                            } else if (data.status == 'canceled' || data.status == 'error') {
+                                this.qrcodeModal.close();
+                                clearInterval(interval);
+                                return reject(new Error('Process is canceled or error occurs'));
+                            }
+                        });
                 }, 1000);
                 this.on('modal_closed', () => {
                     clearInterval(interval);
@@ -438,26 +455,32 @@ export class KlipWeb3Provider extends SafeEventEmitter implements Web3Provider {
             } else if (res.request_key) {
                 const klipLink = requestUrl + res.request_key;
 
-                await request(klipLink, () => {});
-                this.qrcodeModal.open(klipLink, () => {
-                    this.emit('modal_closed');
-                });
-                const interval = setInterval(() => {
-                    getResult(res.request_key).then((data: any) => {
-                        if (data.status == 'completed') {
-                            this.qrcodeModal.close();
-                            clearInterval(interval);
-                            return resolve({
-                                jsonrpc: '2.0',
-                                id: 0,
-                                result: data.result.tx_hash,
-                            });
-                        } else if (data.status == 'canceled' || data.status == 'error') {
-                            this.qrcodeModal.close();
-                            clearInterval(interval);
-                            return reject(new Error('Process is canceled or error occurs'));
-                        }
+                const isMobile = this._checkDeepLink(res.request_key);
+                if (!isMobile) {
+                    this.qrcodeModal.open(klipLink, () => {
+                        this.emit('modal_closed');
                     });
+                }
+
+                const interval = setInterval(() => {
+                    axios
+                        .get(resultUrl + res.request_key)
+                        .then((res) => res.data)
+                        .then((data: any) => {
+                            if (data.status == 'completed') {
+                                this.qrcodeModal.close();
+                                clearInterval(interval);
+                                return resolve({
+                                    jsonrpc: '2.0',
+                                    id: 0,
+                                    result: data.result.tx_hash,
+                                });
+                            } else if (data.status == 'canceled' || data.status == 'error') {
+                                this.qrcodeModal.close();
+                                clearInterval(interval);
+                                return reject(new Error('Process is canceled or error occurs'));
+                            }
+                        });
                 }, 1000);
                 this.on('modal_closed', () => {
                     clearInterval(interval);
@@ -526,4 +549,28 @@ export class KlipWeb3Provider extends SafeEventEmitter implements Web3Provider {
             throw new Error(ErrorMsgUndefined);
         }
     }
+
+    private _getMobileOperatingSystem() {
+        const userAgent = navigator.userAgent || navigator.vendor;
+        if (userAgent.match(/iPad/i) || userAgent.match(/iPhone/i) || userAgent.match(/iPod/i)) {
+            return 'iOS';
+        } else if (userAgent.match(/Android/i)) {
+            return 'Android';
+        } else {
+            return 'unknown';
+        }
+    }
+
+    private _checkDeepLink = (_request_key: string) => {
+        if (this._getMobileOperatingSystem() === 'iOS' || this._getMobileOperatingSystem() === 'Android') {
+            setTimeout(() => {
+                window.open(
+                    'kakaotalk://klipwallet/open?url=https://klipwallet.com/?target=/a2a?request_key=' + _request_key,
+                );
+            });
+            return true;
+        } else {
+            return false;
+        }
+    };
 }
