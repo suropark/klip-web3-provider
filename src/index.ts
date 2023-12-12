@@ -384,7 +384,7 @@ export class KlipWeb3Provider extends SafeEventEmitter implements Web3Provider {
                     type: 'sign_message',
                     chain: 'klaytn',
                     message: {
-                        is_hex_encoded: false,
+                        is_hex_encoded: true,
                         value: value,
                     },
                 })
