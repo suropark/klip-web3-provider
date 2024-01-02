@@ -299,6 +299,8 @@ export class KlipWeb3Provider extends SafeEventEmitter implements Web3Provider {
                 return this._eth_estimateGas(params);
             case JSONRPCMethod.eth_getTransactionByHash:
                 return this._eth_getTransactionByHash(params);
+            case JSONRPCMethod.eth_signTypedData_v4:
+                return this._eth_signTypedData_v4(params);
         }
         throw new Error(`${method} is not supported in klip-web3-provider.`);
     }
@@ -541,6 +543,12 @@ export class KlipWeb3Provider extends SafeEventEmitter implements Web3Provider {
     private async _eth_estimateGas(params: unknown[]): Promise<JSONRPCResponse> {
         this._checkProvider();
         const result = await this.ethersProvider.estimateGas(params[0]);
+        return { jsonrpc: '2.0', id: 0, result };
+    }
+    private async _eth_signTypedData_v4(params: unknown[]): Promise<JSONRPCResponse> {
+        this._checkProvider();
+        const result = await this.ethersProvider.send('eth_signTypedData_v4', params);
+
         return { jsonrpc: '2.0', id: 0, result };
     }
 
